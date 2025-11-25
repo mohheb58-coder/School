@@ -358,11 +358,6 @@
             color: white;
         }
 
-        .item-message.error {
-            background: linear-gradient(135deg, #ef4444 0%, #f87171 100%);
-            color: white;
-        }
-
         .item-message.info {
             background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
             color: white;
@@ -408,10 +403,8 @@
         }
 
         .result-item.deleting {
-            opacity: 0.6;
+            opacity: 0.5;
             pointer-events: none;
-            background: #fef3c7;
-            border-color: #f59e0b;
         }
 
         .result-item:hover {
@@ -592,7 +585,13 @@
 
             <div class="form-group">
                 <label>شغل پدر</label>
-                <input type="text" id="fatherJob" placeholder="شغل پدر را تایپ کنید (اختیاری)" list="jobSuggestions">
+                <input 
+                    type="text" 
+                    id="fatherJob" 
+                    placeholder="تایپ کنید... (مثلاً: کارمند، پزشک، معلم)" 
+                    list="jobSuggestions"
+                    autocomplete="off"
+                >
                 <datalist id="jobSuggestions">
                     <option value="کارمند">
                     <option value="آزاد">
@@ -610,7 +609,14 @@
                     <option value="آهنگر">
                     <option value="برقکار">
                     <option value="لوله‌کش">
+                    <option value="خیاط">
+                    <option value="آرایشگر">
+                    <option value="نانوا">
+                    <option value="مکانیک">
                 </datalist>
+                <small style="color: #6b7280; font-size: 11px; display: block; margin-top: 5px;">
+                    💡 شروع به تایپ کنید تا پیشنهادات نمایش داده شود
+                </small>
             </div>
 
             <button class="btn" onclick="submitForm()">💾 ذخیره در Google Sheets</button>
@@ -639,13 +645,13 @@
                     </select>
                 </div>
                 <div>
-                    <label✍️ عبارت جستجو:</label>
+                    <label>✍️ عبارت جستجو:</label>
                     <input type="text" id="searchInput" placeholder="شروع به تایپ کنید..." oninput="performSearch()">
                 </div>
             </div>
 
             <div class="search-buttons">
-                <button class="btn btn-success" onclick="loadFromSheets()">🔄 بارگذاری از Sheets</button>
+                <button class="btn btn-success" onclick="loadFromSheets()">🔄 بارگذاری مجدد</button>
                 <button class="btn btn-secondary" onclick="exportCSV()">📥 دانلود CSV</button>
             </div>
 
@@ -670,9 +676,12 @@
             document.querySelectorAll('.tab')[0].classList.remove('active');
             document.querySelectorAll('.tab')[1].classList.add('active');
             
-            // نمایش پیام اولیه
+            // بارگذاری خودکار داده‌ها
             if (allData.length === 0) {
-                displayEmptyState('start');
+                loadFromSheets();
+            } else {
+                // نمایش پیام اولیه
+                displayEmptyState('loaded');
             }
         }
 
@@ -786,71 +795,8 @@
             form.submit();
         }
 
-        // تابع جدید برای حذف از گوگل شیتس با استفاده از iframe
-        function deleteFromSheets(name, lastname, callback) {
-            const form = document.createElement('form');
-            form.method = 'POST';
-            form.action = SCRIPT_URL;
-            form.style.display = 'none';
-
-            // اضافه کردن پارامترهای حذف
-            const actionInput = document.createElement('input');
-            actionInput.type = 'hidden';
-            actionInput.name = 'action';
-            actionInput.value = 'delete';
-            form.appendChild(actionInput);
-
-            const nameInput = document.createElement('input');
-            nameInput.type = 'hidden';
-            nameInput.name = 'name';
-            nameInput.value = name;
-            form.appendChild(nameInput);
-
-            const lastnameInput = document.createElement('input');
-            lastnameInput.type = 'hidden';
-            lastnameInput.name = 'lastname';
-            lastnameInput.value = lastname;
-            form.appendChild(lastnameInput);
-
-            const iframe = document.createElement('iframe');
-            iframe.name = 'deleteFrame';
-            iframe.style.display = 'none';
-            
-            let submitted = false;
-            
-            iframe.onload = () => {
-                if (!submitted) {
-                    submitted = true;
-                    setTimeout(() => {
-                        try {
-                            document.body.removeChild(form);
-                            document.body.removeChild(iframe);
-                        } catch(e) {}
-                        
-                        // فراخوانی callback با موفقیت
-                        if (callback) callback(true);
-                    }, 1200);
-                }
-            };
-
-            iframe.onerror = () => {
-                try {
-                    document.body.removeChild(form);
-                    document.body.removeChild(iframe);
-                } catch(e) {}
-                
-                // فراخوانی callback با خطا
-                if (callback) callback(false);
-            };
-
-            document.body.appendChild(iframe);
-            document.body.appendChild(form);
-            form.target = 'deleteFrame';
-            form.submit();
-        }
-
         function loadFromSheets() {
-            showFloatingMessage('info', '⏳ در حال بارگذاری از Google Sheets...');
+            displayEmptyState('loading');
             
             const timestamp = Date.now();
             const script = document.createElement('script');
@@ -866,9 +812,15 @@
                     allData = data;
                     document.getElementById('searchInput').value = '';
                     displayEmptyState('loaded');
-                    showFloatingMessage('success', `✅ ${data.length} رکورد با موفقیت بارگذاری شد!`);
+                    
+                    // پیام شناور فقط برای بارگذاری مجدد
+                    const searchSection = document.getElementById('searchSection');
+                    if (!searchSection.classList.contains('hidden')) {
+                        showFloatingMessage('success', `✅ ${data.length} رکورد بارگذاری شد!`);
+                    }
                 } else {
                     showFloatingMessage('error', '❌ خطا در دریافت داده‌ها');
+                    displayEmptyState('loaded');
                 }
             };
 
@@ -904,13 +856,12 @@
         function displayEmptyState(type) {
             const results = document.getElementById('results');
             
-            if (type === 'start') {
+            if (type === 'loading') {
                 results.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-state-icon">🔍</div>
-                        <h3>شروع به تایپ کنید</h3>
-                        <p>برای نمایش نتایج، در کادر جستجو تایپ کنید</p>
-                        ${allData.length === 0 ? '<p style="margin-top:10px;color:#f59e0b;">⚠️ ابتدا روی دکمه "بارگذاری از Sheets" کلیک کنید</p>' : `<p style="margin-top:10px;color:#10b981;">✅ ${allData.length} رکورد در دیتابیس</p>`}
+                        <div class="empty-state-icon">⏳</div>
+                        <h3>در حال بارگذاری...</h3>
+                        <p>لطفاً صبر کنید</p>
                     </div>
                 `;
             } else if (type === 'loaded') {
@@ -987,46 +938,88 @@
             results.innerHTML = html;
         }
 
-        // تابع به‌روزرسانی شده برای حذف از گوگل شیتس
         function deleteRecord(studentName, studentLastname, buttonElement) {
             if (confirm(`آیا از حذف "${studentName} ${studentLastname}" مطمئن هستید؟\n\n⚠️ این عمل غیرقابل بازگشت است!`)) {
-                // پیدا کردن ایندکس دقیق
-                const index = allData.findIndex(item => 
-                    item.name === studentName && item.lastname === studentLastname
-                );
+                // پیدا کردن کارت مربوطه
+                const resultItem = buttonElement.closest('.result-item');
+                resultItem.classList.add('deleting');
                 
-                if (index !== -1) {
-                    // پیدا کردن کارت مربوطه
-                    const resultItem = buttonElement.closest('.result-item');
-                    resultItem.classList.add('deleting');
-                    
-                    // نمایش پیام در حال حذف
-                    const message = showItemMessage(resultItem, 'info', '⏳ در حال حذف از سرور...');
-                    
-                    // حذف از گوگل شیتس
-                    deleteFromSheets(studentName, studentLastname, (success) => {
-                        // حذف پیام info
-                        if (message && message.parentElement) {
-                            message.remove();
-                        }
-                        
-                        if (success) {
-                            // حذف از آرایه و بروزرسانی نمایش
-                            allData.splice(index, 1);
+                // نمایش پیام در حال حذف
+                showItemMessage(resultItem, 'info', '⏳ در حال حذف از Google Sheets...');
+                
+                // ارسال درخواست حذف به Google Sheets
+                const form = document.createElement('form');
+                form.method = 'POST';
+                form.action = SCRIPT_URL;
+                form.style.display = 'none';
+                
+                // اضافه کردن پارامترها
+                const actionInput = document.createElement('input');
+                actionInput.type = 'hidden';
+                actionInput.name = 'action';
+                actionInput.value = 'delete';
+                form.appendChild(actionInput);
+                
+                const nameInput = document.createElement('input');
+                nameInput.type = 'hidden';
+                nameInput.name = 'name';
+                nameInput.value = studentName;
+                form.appendChild(nameInput);
+                
+                const lastnameInput = document.createElement('input');
+                lastnameInput.type = 'hidden';
+                lastnameInput.name = 'lastname';
+                lastnameInput.value = studentLastname;
+                form.appendChild(lastnameInput);
+                
+                const iframe = document.createElement('iframe');
+                iframe.name = 'deleteFrame';
+                iframe.style.display = 'none';
+                
+                let deleted = false;
+                
+                iframe.onload = () => {
+                    if (!deleted) {
+                        deleted = true;
+                        setTimeout(() => {
+                            try {
+                                document.body.removeChild(form);
+                                document.body.removeChild(iframe);
+                            } catch(e) {}
+                            
+                            // پیدا کردن ایندکس و حذف از آرایه محلی
+                            const index = allData.findIndex(item => 
+                                item.name === studentName && item.lastname === studentLastname
+                            );
+                            
+                            if (index !== -1) {
+                                allData.splice(index, 1);
+                            }
+                            
+                            // نمایش پیام موفقیت
                             showItemMessage(resultItem, 'success', `✅ "${studentName} ${studentLastname}" حذف شد`);
                             
+                            // حذف کارت از نمایش
                             setTimeout(() => {
                                 performSearch();
-                            }, 1200);
-                        } else {
-                            showItemMessage(resultItem, 'error', '❌ خطا در حذف از سرور');
-                            resultItem.classList.remove('deleting');
-                        }
-                    });
-                } else {
-                    const resultItem = buttonElement.closest('.result-item');
-                    showItemMessage(resultItem, 'error', '❌ رکورد یافت نشد');
-                }
+                            }, 1500);
+                        }, 800);
+                    }
+                };
+                
+                iframe.onerror = () => {
+                    try {
+                        document.body.removeChild(form);
+                        document.body.removeChild(iframe);
+                    } catch(e) {}
+                    resultItem.classList.remove('deleting');
+                    showItemMessage(resultItem, 'error', '❌ خطا در حذف از Sheets');
+                };
+                
+                document.body.appendChild(iframe);
+                document.body.appendChild(form);
+                form.target = 'deleteFrame';
+                form.submit();
             }
         }
 
@@ -1040,22 +1033,16 @@
             message.className = `item-message ${type}`;
             message.textContent = text;
             
-            element.style.position = 'relative';
             element.appendChild(message);
             
-            // برای پیام‌های موقت، بعد از مدتی حذف شوند
-            if (type !== 'info') {
-                setTimeout(() => {
-                    message.classList.add('hiding');
-                    setTimeout(() => {
-                        if (message.parentElement) {
-                            message.remove();
-                        }
-                    }, 300);
-                }, 2000);
-            }
+            // اگر پیام info است، نگه‌داریش
+            if (type === 'info') return;
             
-            return message; // برای حذف دستی پیام‌های info
+            // حذف پیام بعد از 1.2 ثانیه
+            setTimeout(() => {
+                message.classList.add('hiding');
+                setTimeout(() => message.remove(), 300);
+            }, 1200);
         }
 
         function makeCall(phone) {
@@ -1092,8 +1079,14 @@
             showFloatingMessage('success', `✅ فایل CSV با ${allData.length} رکورد دانلود شد`);
         }
 
-        // نمایش پیام اولیه در صفحه جستجو
-        displayEmptyState('start');
+        // بارگذاری اولیه داده‌ها هنگام بارگذاری صفحه
+        window.addEventListener('load', function() {
+            // اگر صفحه در حالت جستجو باز شده، داده‌ها رو بارگذاری کن
+            const hash = window.location.hash;
+            if (hash === '#search') {
+                showSearch();
+            }
+        });
     </script>
 </body>
 </html>
